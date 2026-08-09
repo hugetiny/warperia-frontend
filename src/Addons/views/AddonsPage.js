@@ -832,6 +832,17 @@ const AddonsPage = ({
 
     // Fetch GitHub information
     async function fetchGitHubFingerprint(owner, repo, token) {
+        if (window.electron && typeof window.electron.fetchGitHubFingerprint === 'function') {
+            try {
+                const nativeRes = await window.electron.fetchGitHubFingerprint(owner, repo);
+                if (nativeRes && nativeRes.value) {
+                    return nativeRes;
+                }
+            } catch (e) {
+                // fallback to axios
+            }
+        }
+
         let latestReleaseTag = "";
         let latestReleaseDate = null;
         let latestCommitSha = "";
@@ -840,7 +851,7 @@ const AddonsPage = ({
         // 1) Attempt to fetch the latest release
         try {
             const releaseRes = await axios.get(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
-                headers: { Authorization: `Bearer ${token}` },
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (releaseRes.data && releaseRes.data.tag_name && releaseRes.data.published_at) {
                 latestReleaseTag = releaseRes.data.tag_name; 
