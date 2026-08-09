@@ -549,16 +549,80 @@ const AddonsPage = ({
         }
     };
 
+    const handleServerFilterChange = (opt) => {
+        setSelectedServerFilter(opt || serverFilterOptions[0]);
+        setCurrentPage(1);
+    };
+
+    const isServerFilterActive = selectedServerFilter && selectedServerFilter.value !== "all";
+
+    const serverFilteredAddons = useMemo(() => {
+        if (!isServerFilterActive) return null;
+        let list = (allAddons || []).filter((addon) =>
+            isMatchServerFilter(addon, selectedServerFilter.value)
+        );
+
+        if (selectedCategories && selectedCategories.length > 0) {
+            const catIds = selectedCategories.map((c) => c.value);
+            list = list.filter((addon) => {
+                const addonCats = addon.addon_category || [];
+                return addonCats.some((catId) => catIds.includes(catId));
+            });
+        }
+
+        if (searchQuery && searchQuery.trim()) {
+            const q = searchQuery.trim().toLowerCase();
+            list = list.filter((addon) => {
+                const title = (addon.title?.rendered || addon.title || "").toLowerCase();
+                return title.includes(q);
+            });
+        }
+
+        const sortVal = selectedSorting?.value || "installs";
+        list.sort((a, b) => {
+            if (sortVal === "installs" || sortVal === "most-popular") {
+                const instA = parseInt(a.custom_fields?.installs || a.installs || 0, 10);
+                const instB = parseInt(b.custom_fields?.installs || b.installs || 0, 10);
+                return instB - instA;
+            } else if (sortVal === "title" || sortVal === "name-asc") {
+                const tA = (a.title?.rendered || a.title || "").toLowerCase();
+                const tB = (b.title?.rendered || b.title || "").toLowerCase();
+                return tA.localeCompare(tB);
+            } else if (sortVal === "title-desc" || sortVal === "name-desc") {
+                const tA = (a.title?.rendered || a.title || "").toLowerCase();
+                const tB = (b.title?.rendered || b.title || "").toLowerCase();
+                return tB.localeCompare(tA);
+            } else if (sortVal === "date" || sortVal === "recently-updated") {
+                return new Date(b.date || b.modified || 0) - new Date(a.date || a.modified || 0);
+            } else if (sortVal === "rating") {
+                return parseFloat(b.custom_fields?.rating || 0) - parseFloat(a.custom_fields?.rating || 0);
+            }
+            return 0;
+        });
+
+        return list;
+    }, [isServerFilterActive, allAddons, selectedServerFilter, selectedCategories, searchQuery, selectedSorting]);
+
+    const currentDisplayAddons = isServerFilterActive
+        ? (serverFilteredAddons || []).slice((currentPage - 1) * pageSize, currentPage * pageSize)
+        : addons;
+
+    const currentDisplayTotalPages = isServerFilterActive
+        ? Math.max(1, Math.ceil((serverFilteredAddons || []).length / pageSize))
+        : totalPages;
+
     const handleSortingChange = async (selectedOption) => {
         setSelectedSorting(selectedOption);
         setPreviousSorting(selectedOption); // Update previousSorting whenever sorting changes
         setCurrentPage(1); // Reset to page 1 when sorting changes
-        await fetchAddonsData(
-            1,
-            searchQuery,
-            selectedCategories.map((option) => option.value),
-            selectedOption.value
-        );
+        if (!isServerFilterActive) {
+            await fetchAddonsData(
+                1,
+                searchQuery,
+                selectedCategories.map((option) => option.value),
+                selectedOption.value
+            );
+        }
     };
 
     useEffect(() => {
@@ -2420,7 +2484,7 @@ const AddonsPage = ({
                                     <Select
                                         options={serverFilterOptions}
                                         value={selectedServerFilter}
-                                        onChange={(opt) => setSelectedServerFilter(opt || serverFilterOptions[0])}
+                                        onChange={handleServerFilterChange}
                                         placeholder="Server Filter"
                                         className="dark-select"
                                         classNamePrefix="warperia-select"
@@ -2462,19 +2526,14 @@ const AddonsPage = ({
                             </div>
                         ) : (
                             <>
-                                {(() => {
-                                    const filteredAddons = addons.filter((addon) =>
-                                        isMatchServerFilter(addon, selectedServerFilter.value)
-                                    );
-                                    return filteredAddons.length > 0 ? (
-                                        renderAddonsList(filteredAddons)
-                                    ) : (
-                                        <p className="text-muted">No addons found for selected server filter.</p>
-                                    );
-                                })()}
+                                {currentDisplayAddons && currentDisplayAddons.length > 0 ? (
+                                    renderAddonsList(currentDisplayAddons)
+                                ) : (
+                                    <p className="text-muted">No addons found for selected filter criteria.</p>
+                                )}
                                 <Pagination
                                     currentPage={currentPage}
-                                    totalPages={totalPages}
+                                    totalPages={currentDisplayTotalPages}
                                     onPageChange={handlePageChange}
                                     onJumpToPage={handleJumpToPage}
                                 />

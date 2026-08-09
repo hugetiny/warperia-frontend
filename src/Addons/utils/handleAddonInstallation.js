@@ -3,6 +3,41 @@ import { WEB_URL, GITHUB_TOKEN } from "./../../config.js";
 import cleanupDownload from "./cleanupDownload.js";
 import updateAddonInstallStats from "./updateAddonInstallStats.js";
 const GITHUB_ACCESS_TOKEN = `${GITHUB_TOKEN}`;
+
+async function copyFolderRecursively(src, dest, electron) {
+  await electron.createFolder(dest);
+  const { files, directories } = await electron.readDirAndFiles(src);
+  for (const file of files || []) {
+    const srcFilePath = electron.pathJoin(src, file);
+    const destFilePath = electron.pathJoin(dest, file);
+    const content = await electron.readBinaryFile(srcFilePath);
+    await electron.overwriteFile(destFilePath, content);
+  }
+  for (const dir of directories || []) {
+    const srcSub = electron.pathJoin(src, dir);
+    const destSub = electron.pathJoin(dest, dir);
+    await copyFolderRecursively(srcSub, destSub, electron);
+  }
+}
+
+async function flattenSingleExtractedFolder(srcParent, dstFolder, electron) {
+  const { files, directories } = await electron.readDirAndFiles(srcParent);
+  for (const file of files || []) {
+    const oldFilePath = electron.pathJoin(srcParent, file);
+    const newFilePath = electron.pathJoin(dstFolder, file);
+    const fileContent = await electron.readBinaryFile(oldFilePath);
+    await electron.overwriteFile(newFilePath, fileContent);
+    await electron.deleteFile(oldFilePath);
+  }
+  for (const dir of directories || []) {
+    const oldSubPath = electron.pathJoin(srcParent, dir);
+    const newSubPath = electron.pathJoin(dstFolder, dir);
+    await copyFolderRecursively(oldSubPath, newSubPath, electron);
+    await electron.deleteFolder(oldSubPath);
+  }
+  await electron.deleteFolder(srcParent);
+}
+
 /**
  * Handles the installation of an addon
  */
@@ -509,8 +544,12 @@ const handleAddonInstallation = async (
         const { files } = await window.electron.readDirAndFiles(extractedFolderPath);
         const tocFiles = (files || []).filter(f => f.toLowerCase().endsWith('.toc'));
         if (tocFiles.length > 0) {
-          const matchingToc = tocFiles.find(f => f.toLowerCase() === `${mainFolderNameRaw.toLowerCase()}.toc`) || tocFiles[0];
-          mainFolderName = matchingToc.replace(/\.toc$/i, '');
+          // Filter out fallback / problem TOC files (e.g. Questie.toc which says install folder problem)
+          const validTocs = tocFiles.filter(f => !f.toLowerCase().includes('problem') && f.toLowerCase() !== 'questie.toc');
+          const matchingToc = validTocs.find(f => f.toLowerCase() === `${mainFolderNameRaw.toLowerCase()}.toc`) || validTocs[0] || tocFiles[0];
+          if (matchingToc) {
+            mainFolderName = matchingToc.replace(/\.toc$/i, '');
+          }
         }
       } catch (e) {
         console.warn("Could not detect .toc file inside extracted folder:", e);
@@ -525,7 +564,7 @@ const handleAddonInstallation = async (
       if (isMultiFolder) {
         // MULTI-FOLDER scenario
         // Flatten them all directly into AddOns
-        await flattenSingleExtractedFolder(extractedFolderPath, installPath);
+        await flattenSingleExtractedFolder(extractedFolderPath, installPath, window.electron);
       } else {
         // SIMPLE SINGLE-FOLDER scenario => rename folder to match .toc filename
         let finalFolderPath = extractedFolderPath;
@@ -533,7 +572,7 @@ const handleAddonInstallation = async (
           const oldPath = extractedFolderPath;
           const newPath = window.electron.pathJoin(installPath, mainFolderName);
 
-          await copyFolderRecursively(oldPath, newPath);
+          await copyFolderRecursively(oldPath, newPath, window.electron);
           await window.electron.deleteFolder(oldPath);
 
           // Now the actual folder is called "mainFolderName"
@@ -554,7 +593,7 @@ const handleAddonInstallation = async (
                 finalFolderPath,
                 mainFolderName
               );
-              await flattenSingleExtractedFolder(innerPath, finalFolderPath);
+              await flattenSingleExtractedFolder(innerPath, finalFolderPath, window.electron);
             }
           } catch (err) {
             console.warn("Double‐folder check failed:", err);
