@@ -469,7 +469,12 @@ const handleAddonInstallation = async (
       showToastMessage(`Main folder not found for "${addonTitle}"`, "danger");
       throw new Error("Missing mainFolder in custom_fields.folder_list");
     }
-    const [mainFolderName] = mainFolder;
+    const [mainFolderNameRaw] = mainFolder;
+    const cleanFolderName = (name) => {
+      if (!name) return name;
+      return name.replace(/-(?:335|master|main|v?\d+(?:\.\d+)*)(?:-\d+)?$/i, '').trim();
+    };
+    const mainFolderName = cleanFolderName(mainFolderNameRaw);
 
     // 2) Compare "before" vs. "after" to see only new folders
     const afterInstallItems = await window.electron.readDir(installPath);
