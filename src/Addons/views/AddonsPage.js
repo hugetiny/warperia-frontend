@@ -375,7 +375,16 @@ const AddonsPage = ({
                     "desc"
                 );
 
-                setAddons(data);
+                let sortedData = Array.isArray(data) ? [...data] : [];
+                if (orderby === "installs") {
+                    sortedData.sort((a, b) => Number(b.custom_fields?.installs || 0) - Number(a.custom_fields?.installs || 0));
+                } else if (orderby === "recently_added") {
+                    sortedData.sort((a, b) => new Date(b.date || b.post_date || 0) - new Date(a.date || a.post_date || 0));
+                } else if (orderby === "recently_updated") {
+                    sortedData.sort((a, b) => new Date(b.custom_fields?.post_modified || b.modified || 0) - new Date(a.custom_fields?.post_modified || a.modified || 0));
+                }
+
+                setAddons(sortedData);
                 setTotalPages(totalPages || 1);
                 setCurrentPage(page);
             } catch (error) {
