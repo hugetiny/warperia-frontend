@@ -398,24 +398,24 @@ const AddonModal = ({ show, onHide, addon, loading, installedAddon, downloading,
                 </div>
 
                 {lightboxOpen && (
-                    <div className="lightbox-overlay">
+                    <div className="lightbox-overlay" onClick={closeLightbox}>
                         <span className="lightbox-close" onClick={closeLightbox}><i className="bi bi-x-lg"></i> Close Images</span>
                         <Swiper
                             spaceBetween={10}
                             slidesPerView={1}
                             navigation
-                            loop={true}
+                            loop={screenshots.length > 1}
                             modules={[Navigation]}
-                            initialSlide={currentImage === addon.featured_image ? 0 : addon.custom_fields.screenshots?.indexOf(currentImage) || 0}
+                            initialSlide={screenshots.indexOf(currentImage) !== -1 ? screenshots.indexOf(currentImage) : 0}
                         >
-                            {addon.custom_fields.screenshots?.length > 0 ? (
-                                addon.custom_fields.screenshots.map((image, index) => (
-                                    <SwiperSlide key={index}>
+                            {screenshots.length > 0 ? (
+                                screenshots.map((image, index) => (
+                                    <SwiperSlide key={index} onClick={(e) => e.stopPropagation()}>
                                         <img src={image} className="lightbox-image" alt={`Screenshot ${index + 1}`} />
                                     </SwiperSlide>
                                 ))
                             ) : (
-                                <SwiperSlide>
+                                <SwiperSlide onClick={(e) => e.stopPropagation()}>
                                     <img src={addon.featured_image} className="lightbox-image" alt="Featured Image" />
                                 </SwiperSlide>
                             )}
