@@ -80,14 +80,10 @@ const AddonsPage = ({
     const [selectedCategories, setSelectedCategories] = useState([]);
     
     const serverFilterOptions = [
-        { value: "all", label: "All Servers (全部)" },
-        { value: "universal", label: "Universal (通用版)" },
+        { value: "all", label: "All Servers" },
+        { value: "freedom", label: "Freedom WoW" },
         { value: "epoch", label: "Project Epoch" },
-        { value: "turtle", label: "Turtle WoW" },
-        { value: "ascension", label: "Ascension WoW" },
-        { value: "chromie", label: "ChromieCraft" },
         { value: "warmane", label: "Warmane" },
-        { value: "whitemane", label: "Whitemane" },
     ];
     const [selectedServerFilter, setSelectedServerFilter] = useState(serverFilterOptions[0]);
 
@@ -115,28 +111,14 @@ const AddonsPage = ({
             addon.custom_fields?.summary || ""
         ].join(" ").toLowerCase();
 
-        const isPrivateServer = /epoch|turtle|ascension|chromie|whitemane|warmane|azeroth|trinity/.test(allText);
-
-        if (filterValue === "universal") {
-            return !isPrivateServer;
+        if (filterValue === "freedom") {
+            return allText.includes("freedom");
         }
         if (filterValue === "epoch") {
             return allText.includes("epoch");
         }
-        if (filterValue === "turtle") {
-            return allText.includes("turtle");
-        }
-        if (filterValue === "ascension") {
-            return allText.includes("ascension");
-        }
-        if (filterValue === "chromie") {
-            return allText.includes("chromie");
-        }
         if (filterValue === "warmane") {
             return allText.includes("warmane");
-        }
-        if (filterValue === "whitemane") {
-            return allText.includes("whitemane");
         }
         return true;
     };
@@ -447,17 +429,32 @@ const AddonsPage = ({
     useEffect(() => {
         const fetchCategories = async () => {
             try {
-                const response = await axios.get(
-                    `${WEB_URL}/wp-json/wp/v2/${currentExpansion}-addon-categories`
-                );
-                setCategories(response.data);
+                let response;
+                try {
+                    response = await axios.get(
+                        `${WEB_URL}/wp-json/wp/v2/addon-${currentExpansion}-category?per_page=100`
+                    );
+                } catch (e) {
+                    response = await axios.get(
+                        `${WEB_URL}/wp-json/wp/v2/${currentExpansion}-addon-categories?per_page=100`
+                    );
+                }
+
+                if (Array.isArray(response.data)) {
+                    const formatted = response.data.map((cat) => ({
+                        value: cat.id,
+                        label: decodeHtmlEntities(cat.name || ""),
+                    }));
+                    formatted.sort((a, b) => a.label.localeCompare(b.label));
+                    setCategories(formatted);
+                }
             } catch (error) {
                 console.error("Error fetching categories:", error);
             }
         };
 
         fetchCategories();
-    }, []);
+    }, [currentExpansion]);
 
     // Logic for showing addon creators
     const renderAddonAuthor = (addon, hideImage = false) => {
