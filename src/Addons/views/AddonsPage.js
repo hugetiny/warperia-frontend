@@ -78,6 +78,64 @@ const AddonsPage = ({
     const [selectedAddon, setSelectedAddon] = useState(null);
     const [categories, setCategories] = useState([]);
     const [selectedCategories, setSelectedCategories] = useState([]);
+    
+    const serverFilterOptions = [
+        { value: "all", label: "All Servers (全部)" },
+        { value: "universal", label: "Universal (通用版)" },
+        { value: "epoch", label: "Project Epoch" },
+        { value: "turtle", label: "Turtle WoW" },
+        { value: "ascension", label: "Ascension WoW" },
+        { value: "chromie", label: "ChromieCraft" },
+        { value: "warmane", label: "Warmane / Whitemane" },
+    ];
+    const [selectedServerFilter, setSelectedServerFilter] = useState(serverFilterOptions[0]);
+
+    const isMatchServerFilter = (addon, filterValue) => {
+        if (!addon || !filterValue || filterValue === "all") return true;
+
+        let categoriesList = [];
+        if (Array.isArray(addon.addon_categories)) {
+            categoriesList = addon.addon_categories;
+        } else if (addon.addon_categories && typeof addon.addon_categories === 'string') {
+            try {
+                const parsed = JSON.parse(addon.addon_categories);
+                categoriesList = Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                categoriesList = addon.addon_categories.split(',');
+            }
+        } else if (addon.categories && Array.isArray(addon.categories)) {
+            categoriesList = addon.categories.map(c => c.name);
+        }
+
+        const allText = [
+            addon.title || "",
+            ...categoriesList,
+            addon.custom_fields?.variation_name || "",
+            addon.custom_fields?.summary || ""
+        ].join(" ").toLowerCase();
+
+        const isPrivateServer = /epoch|turtle|ascension|chromie|whitemane|warmane|azeroth|trinity/.test(allText);
+
+        if (filterValue === "universal") {
+            return !isPrivateServer;
+        }
+        if (filterValue === "epoch") {
+            return allText.includes("epoch");
+        }
+        if (filterValue === "turtle") {
+            return allText.includes("turtle");
+        }
+        if (filterValue === "ascension") {
+            return allText.includes("ascension");
+        }
+        if (filterValue === "chromie") {
+            return allText.includes("chromie");
+        }
+        if (filterValue === "warmane") {
+            return allText.includes("warmane") || allText.includes("whitemane");
+        }
+        return true;
+    };
     const [selectedSorting, setSelectedSorting] = useState({
         value: "installs",
         label: "Most Popular",
@@ -2300,7 +2358,7 @@ const AddonsPage = ({
                         aria-labelledby="browse-addons-tab"
                     >
                         <div className="row justify-content-between gy-2 mb-4 sticky-top sticky-controls pt-2">
-                            <div className="col-12 col-md-8">
+                            <div className="col-12 col-md-5">
                                 <div className="searchbar-addons-browse position-relative">
                                     <input
                                         className="form-control mr-sm-2"
@@ -2310,6 +2368,18 @@ const AddonsPage = ({
                                         onChange={handleSearchChange}
                                     />
                                     <i className="bi bi-search position-absolute text-muted pe-none"></i>
+                                </div>
+                            </div>
+                            <div className="col-12 col-md-3">
+                                <div className="addon-filter-input">
+                                    <Select
+                                        options={serverFilterOptions}
+                                        value={selectedServerFilter}
+                                        onChange={(opt) => setSelectedServerFilter(opt || serverFilterOptions[0])}
+                                        placeholder="Server Filter"
+                                        className="dark-select"
+                                        classNamePrefix="warperia-select"
+                                    />
                                 </div>
                             </div>
                             <div className="col-12 col-md-2">
@@ -2347,11 +2417,16 @@ const AddonsPage = ({
                             </div>
                         ) : (
                             <>
-                                {addons.length > 0 ? (
-                                    renderAddonsList(addons)
-                                ) : (
-                                    <p className="text-muted">No addons found.</p>
-                                )}
+                                {(() => {
+                                    const filteredAddons = addons.filter((addon) =>
+                                        isMatchServerFilter(addon, selectedServerFilter.value)
+                                    );
+                                    return filteredAddons.length > 0 ? (
+                                        renderAddonsList(filteredAddons)
+                                    ) : (
+                                        <p className="text-muted">No addons found for selected server filter.</p>
+                                    );
+                                })()}
                                 <Pagination
                                     currentPage={currentPage}
                                     totalPages={totalPages}
