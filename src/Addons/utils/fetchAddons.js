@@ -29,19 +29,9 @@ const fetchAddons = async (expansion, page = 1, search = '', categories = [], pa
             search,
             page,
             per_page: pageSize,
+            orderby,
             order,
         };
-
-        if (orderby === 'installs') {
-            params.orderby = 'meta_value_num';
-            params.meta_key = 'installs';
-        } else if (orderby === 'recently_added') {
-            params.orderby = 'date';
-        } else if (orderby === 'recently_updated') {
-            params.orderby = 'modified';
-        } else {
-            params.orderby = orderby;
-        }
 
         if (categories.length > 0) {
             params.addon_category = categories.join(',');
