@@ -1834,51 +1834,44 @@ const AddonsPage = ({
             []
         );
 
-        // Sort addons needing updates to the top
-        const sortedAddons = uniqueAddons.sort((a, b) => {
-            // 1) Local versions
-            const aLocalVersion = a.localVersion || "0.0.0";
-            const bLocalVersion = b.localVersion || "0.0.0";
-
-            // 2) Backend versions
-            const aBackendVersion = a.custom_fields?.version || "0.0.0";
-            const bBackendVersion = b.custom_fields?.version || "0.0.0";
-
-            // 3) Filenames
-            const aBackendFilename = a.custom_fields?.file?.split("/")?.pop() || "";
-            const bBackendFilename = b.custom_fields?.file?.split("/")?.pop() || "";
-            const aLocalFilename = a.storedFilename || "";
-            const bLocalFilename = b.storedFilename || "";
-
-            // 4) Helper: does addon need an update?
-            const needsUpdate = (addon, localVer, backendVer, localFile, backendFile) => {
-                // Compare versions: if backendVer is strictly greater => out of date
-                const verCompare = semverCompare(backendVer, localVer);
-                const versionIsOutdated = (verCompare > 0); // only if backend > local
-
-                // Compare filenames
-                const fileIsOutdated = !!(localFile && backendFile && localFile !== backendFile);
-
-                // Or the addon might be flagged as corrupted
-                const isCorrupted = !!addon.corrupted;
-
-                // If ANY are true => needs update
-                return versionIsOutdated || fileIsOutdated || isCorrupted;
-            };
-
-            // 5) Evaluate for a and b
-            const aNeedsUpdate = needsUpdate(a, aLocalVersion, aBackendVersion, aLocalFilename, aBackendFilename);
-            const bNeedsUpdate = needsUpdate(b, bLocalVersion, bBackendVersion, bLocalFilename, bBackendFilename);
-
-            // 6) Sort so that those needing an update appear at the top
-            if (aNeedsUpdate && !bNeedsUpdate) return -1;   // a first
-            if (!aNeedsUpdate && bNeedsUpdate) return 1;    // b first
-            return 0; // otherwise, keep them in normal order
-        });
-
-        let finalAddons = sortedAddons;
+        let finalAddons = uniqueAddons;
 
         if (activeTab === "myAddons") {
+            // Sort addons needing updates to the top for My Addons only
+            finalAddons = [...uniqueAddons].sort((a, b) => {
+                // 1) Local versions
+                const aLocalVersion = a.localVersion || "0.0.0";
+                const bLocalVersion = b.localVersion || "0.0.0";
+
+                // 2) Backend versions
+                const aBackendVersion = a.custom_fields?.version || "0.0.0";
+                const bBackendVersion = b.custom_fields?.version || "0.0.0";
+
+                // 3) Filenames
+                const aBackendFilename = a.custom_fields?.file?.split("/")?.pop() || "";
+                const bBackendFilename = b.custom_fields?.file?.split("/")?.pop() || "";
+                const aLocalFilename = a.storedFilename || "";
+                const bLocalFilename = b.storedFilename || "";
+
+                // 4) Helper: does addon need an update?
+                const needsUpdate = (addon, localVer, backendVer, localFile, backendFile) => {
+                    const verCompare = semverCompare(backendVer, localVer);
+                    const versionIsOutdated = (verCompare > 0);
+                    const fileIsOutdated = !!(localFile && backendFile && localFile !== backendFile);
+                    const isCorrupted = !!addon.corrupted;
+                    return versionIsOutdated || fileIsOutdated || isCorrupted;
+                };
+
+                // 5) Evaluate for a and b
+                const aNeedsUpdate = needsUpdate(a, aLocalVersion, aBackendVersion, aLocalFilename, aBackendFilename);
+                const bNeedsUpdate = needsUpdate(b, bLocalVersion, bBackendVersion, bLocalFilename, bBackendFilename);
+
+                // 6) Sort so that those needing an update appear at the top
+                if (aNeedsUpdate && !bNeedsUpdate) return -1;
+                if (!aNeedsUpdate && bNeedsUpdate) return 1;
+                return (a.title || "").localeCompare(b.title || "");
+            });
+
             // Apply filtering if user typed something in the installed search
             if (installedSearchQuery && installedSearchQuery.trim().length > 0) {
                 const searchTerm = installedSearchQuery.toLowerCase();
