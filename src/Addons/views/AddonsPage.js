@@ -2330,6 +2330,7 @@ const AddonsPage = ({
                                     <>
                                         {renderAddonsList(
                                             Object.values(installedAddons)
+                                                .sort((a, b) => (a.title || "").localeCompare(b.title || ""))
                                                 .map((installedAddon) => {
                                                     const matchedAddon = addons.find(
                                                         (addon) =>
