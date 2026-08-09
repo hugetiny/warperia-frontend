@@ -86,7 +86,8 @@ const AddonsPage = ({
         { value: "turtle", label: "Turtle WoW" },
         { value: "ascension", label: "Ascension WoW" },
         { value: "chromie", label: "ChromieCraft" },
-        { value: "warmane", label: "Warmane / Whitemane" },
+        { value: "warmane", label: "Warmane" },
+        { value: "whitemane", label: "Whitemane" },
     ];
     const [selectedServerFilter, setSelectedServerFilter] = useState(serverFilterOptions[0]);
 
@@ -132,7 +133,10 @@ const AddonsPage = ({
             return allText.includes("chromie");
         }
         if (filterValue === "warmane") {
-            return allText.includes("warmane") || allText.includes("whitemane");
+            return allText.includes("warmane");
+        }
+        if (filterValue === "whitemane") {
+            return allText.includes("whitemane");
         }
         return true;
     };
