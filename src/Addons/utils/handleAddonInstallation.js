@@ -470,11 +470,7 @@ const handleAddonInstallation = async (
       throw new Error("Missing mainFolder in custom_fields.folder_list");
     }
     const [mainFolderNameRaw] = mainFolder;
-    const cleanFolderName = (name) => {
-      if (!name) return name;
-      return name.replace(/-(?:335|master|main|v?\d+(?:\.\d+)*)(?:-\d+)?$/i, '').trim();
-    };
-    const mainFolderName = cleanFolderName(mainFolderNameRaw);
+    let mainFolderName = mainFolderNameRaw;
 
     // 2) Compare "before" vs. "after" to see only new folders
     const afterInstallItems = await window.electron.readDir(installPath);
@@ -482,14 +478,25 @@ const handleAddonInstallation = async (
       (item) => !beforeInstallItems.includes(item)
     );
 
-    // 2) If there's exactly one new parent folder, flatten it so that
-    // all subfolders  end up in AddOns.
+    // 2) If there's exactly one new parent folder, flatten or rename it to match .toc file
     if (newlyExtractedFolders.length === 1) {
       const extractedFolderName = newlyExtractedFolders[0];
       const extractedFolderPath = window.electron.pathJoin(
         installPath,
         extractedFolderName
       );
+
+      // Auto-detect the exact .toc file inside extracted folder
+      try {
+        const { files } = await window.electron.readDirAndFiles(extractedFolderPath);
+        const tocFiles = (files || []).filter(f => f.toLowerCase().endsWith('.toc'));
+        if (tocFiles.length > 0) {
+          const matchingToc = tocFiles.find(f => f.toLowerCase() === `${mainFolderNameRaw.toLowerCase()}.toc`) || tocFiles[0];
+          mainFolderName = matchingToc.replace(/\.toc$/i, '');
+        }
+      } catch (e) {
+        console.warn("Could not detect .toc file inside extracted folder:", e);
+      }
 
       // 1) Check if this single folder contains multiple subfolders from the addon folder_list
       const isMultiFolder = await hasMultipleSubfolders(
@@ -502,7 +509,7 @@ const handleAddonInstallation = async (
         // Flatten them all directly into AddOns
         await flattenSingleExtractedFolder(extractedFolderPath, installPath);
       } else {
-        // SIMPLE SINGLE-FOLDER scenario => do the old rename approach
+        // SIMPLE SINGLE-FOLDER scenario => rename folder to match .toc filename
         let finalFolderPath = extractedFolderPath;
         if (extractedFolderName !== mainFolderName) {
           const oldPath = extractedFolderPath;
