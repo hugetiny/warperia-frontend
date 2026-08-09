@@ -85,11 +85,24 @@ const AddonsPage = ({
         { value: "epoch", label: "Project Epoch" },
         { value: "warmane", label: "Warmane" },
     ];
+    const defaultServerLinkedMap = {
+        freedom: new Set([21465, 21480, 22770]),
+        epoch: new Set([5341, 5284, 5280, 4614, 5508, 5515, 5101, 5612, 5670, 5546, 9166, 9162, 9177, 9260, 9264, 9309, 9319, 9426, 9446, 12861, 20601, 21375, 21790, 21833, 21888, 21924]),
+        warmane: new Set([1130, 9267, 9342, 16367, 20878, 21211, 21654, 21766, 21782, 21836, 21924, 22000, 22173, 22260, 22257, 22292, 22467, 22471, 22498, 22779, 22784, 22857, 23054]),
+    };
+    const [serverLinkedMap, setServerLinkedMap] = useState(defaultServerLinkedMap);
     const [selectedServerFilter, setSelectedServerFilter] = useState(serverFilterOptions[0]);
 
     const isMatchServerFilter = (addon, filterValue) => {
         if (!addon || !filterValue || filterValue === "all") return true;
 
+        // 1. Check exact server-linked addon ID mapping (from Warperia server meta)
+        const linkedSet = serverLinkedMap[filterValue];
+        if (linkedSet && linkedSet.has(addon.id)) {
+            return true;
+        }
+
+        // 2. Check title / category / summary keywords
         let categoriesList = [];
         if (Array.isArray(addon.addon_categories)) {
             categoriesList = addon.addon_categories;
@@ -120,7 +133,7 @@ const AddonsPage = ({
         if (filterValue === "warmane") {
             return allText.includes("warmane");
         }
-        return true;
+        return false;
     };
     const [selectedSorting, setSelectedSorting] = useState({
         value: "installs",
@@ -453,7 +466,33 @@ const AddonsPage = ({
             }
         };
 
+        const fetchServers = async () => {
+            try {
+                const res = await axios.get(`${WEB_URL}/wp-json/wp/v2/server?per_page=100`);
+                if (Array.isArray(res.data)) {
+                    const newMap = { ...defaultServerLinkedMap };
+                    res.data.forEach((s) => {
+                        const rawIds = s.meta_box?.server_linked_addons || "";
+                        if (rawIds) {
+                            const ids = rawIds
+                                .split(",")
+                                .map((id) => parseInt(id.trim(), 10))
+                                .filter((id) => !isNaN(id));
+                            let key = s.slug;
+                            if (key === "freedom-wow") key = "freedom";
+                            if (key === "project-epoch") key = "epoch";
+                            newMap[key] = new Set(ids);
+                        }
+                    });
+                    setServerLinkedMap(newMap);
+                }
+            } catch (e) {
+                console.error("Error fetching servers:", e);
+            }
+        };
+
         fetchCategories();
+        fetchServers();
     }, [currentExpansion]);
 
     // Logic for showing addon creators
