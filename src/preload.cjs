@@ -15,6 +15,10 @@ try {
   const os = require('os');
 
   contextBridge.exposeInMainWorld('electron', {
+    platform: process.platform,
+    arch: process.arch,
+    isMacSilicon: process.platform === 'darwin' && (process.arch === 'arm64' || os.arch() === 'arm64'),
+    isMac: process.platform === 'darwin',
 
     // --------------------------------
     // KEY IPC RENDERER WRAPPERS

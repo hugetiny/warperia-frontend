@@ -44,6 +44,7 @@ const ServerPage = ({ user }) => {
   const [allSessions, setAllSessions] = useState([]);
 
   const expansion = server?.s_version || "Unknown Expansion";
+  const isMacSilicon = window.electron?.isMacSilicon || (window.electron?.platform === 'darwin' && window.electron?.arch === 'arm64');
 
   const handleEditServer = () => setShowEditModal(true);
 
@@ -417,43 +418,48 @@ const ServerPage = ({ user }) => {
                       </div>
                     </div>
                     <div className="d-flex align-items-center gap-2 mt-3 control-buttons">
-                      <Tippy
-                        content="Start playing"
-                        placement="bottom"
-                        className="custom-tooltip"
-                      >
-                        <button
-                          className="btn btn-sm btn-primary"
-                          onClick={handleLaunch}
-                          disabled={isRunning}
-                        >
-                          <i className="bi bi-play-fill"></i>
-                          {isRunning ? " Running" : " Launch"}
-                        </button>
-                      </Tippy>
-                      <Tippy
-                        content="Restart game"
-                        placement="bottom"
-                        className="custom-tooltip"
-                      >
-                        <button
-                          className="btn btn-sm btn-secondary btn-restart"
-                          onClick={handleRestart}
-                          disabled={!isRunning}
-                        >
-                          <i className="bi bi-arrow-clockwise"></i> Restart
-                        </button>
-                      </Tippy>
+                      {!isMacSilicon && (
+                        <>
+                          <Tippy
+                            content="Start playing"
+                            placement="bottom"
+                            className="custom-tooltip"
+                          >
+                            <button
+                              className="btn btn-sm btn-primary"
+                              onClick={handleLaunch}
+                              disabled={isRunning}
+                            >
+                              <i className="bi bi-play-fill"></i>
+                              {isRunning ? " Running" : " Launch"}
+                            </button>
+                          </Tippy>
+                          <Tippy
+                            content="Restart game"
+                            placement="bottom"
+                            className="custom-tooltip"
+                          >
+                            <button
+                              className="btn btn-sm btn-secondary btn-restart"
+                              onClick={handleRestart}
+                              disabled={!isRunning}
+                            >
+                              <i className="bi bi-arrow-clockwise"></i> Restart
+                            </button>
+                          </Tippy>
+                        </>
+                      )}
                       <Tippy
                         content="Open directory"
                         placement="bottom"
                         className="custom-tooltip"
                       >
                         <button
-                          className="ms-auto btn btn-link"
+                          className={`${isMacSilicon ? "btn btn-sm btn-outline-secondary w-100 text-start" : "ms-auto btn btn-link"}`}
                           onClick={() => handleOpenDirectory(server.s_dir)}
                         >
                           <i className="bi bi-folder-symlink vertical-fix"></i>
+                          {isMacSilicon && <span className="ms-2">Open Game Folder</span>}
                         </button>
                       </Tippy>
                     </div>
