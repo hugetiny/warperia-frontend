@@ -73,6 +73,10 @@ const BrowseAddonCard = ({
   // Check if the author's name is valid
   const author = ["N/A", "Unknown", "Unknown author"].includes(authorText) ? null : authorText;
 
+  const privateServerCategories = categories.filter(c => 
+    /epoch|turtle|ascension|chromie|whitemane|warmane|azeroth|trinity/i.test(c)
+  );
+
   return (
     <div
       className="col-12"
@@ -103,6 +107,11 @@ const BrowseAddonCard = ({
                         v{addon.custom_fields.version}
                       </span>
                     )}{" "}
+                    {privateServerCategories.map((cat) => (
+                      <span key={cat} className="badge bg-info text-dark ms-1 small">
+                        {cat}
+                      </span>
+                    ))}{" "}
                     {author && (
                       <span className="text-muted"> {" "}
                         by {author}

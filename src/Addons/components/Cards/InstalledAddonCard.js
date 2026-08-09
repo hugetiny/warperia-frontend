@@ -17,6 +17,24 @@ const InstalledAddonCard = ({
   const needsUpdate = installedAddon && installedVersion !== backendVersion;
   const isCorrupted = installedAddon ? installedAddon.corrupted : false;
 
+  let categories = [];
+  if (Array.isArray(addon.addon_categories)) {
+    categories = addon.addon_categories.map(category => decodeHtmlEntities(category));
+  } else if (addon.addon_categories && typeof addon.addon_categories === 'string') {
+    try {
+      const parsed = JSON.parse(addon.addon_categories);
+      categories = Array.isArray(parsed) ? parsed.map(c => decodeHtmlEntities(c)) : [];
+    } catch (e) {
+      categories = addon.addon_categories.split(',').map(c => decodeHtmlEntities(c.trim()));
+    }
+  } else if (addon.categories && Array.isArray(addon.categories)) {
+    categories = addon.categories.map(category => decodeHtmlEntities(category.name));
+  }
+
+  const privateServerCategories = categories.filter(c => 
+    /epoch|turtle|ascension|chromie|whitemane|warmane|azeroth|trinity/i.test(c)
+  );
+
   return (
     <div
       className={`col-12 single-addon-row`}
@@ -38,7 +56,12 @@ const InstalledAddonCard = ({
           </div>
           <div className="details d-flex justify-content-between flex-wrap">
             <div className="addon-title text-light fw-bold">
-              {addon.title}
+              {addon.title}{" "}
+              {privateServerCategories.map((cat) => (
+                <span key={cat} className="badge bg-info text-dark ms-1 small">
+                  {cat}
+                </span>
+              ))}
               {downloading && installingAddonId === addon.id && (
                 <div
                   className="spinner-border spinner-addon-title ms-2 text-muted"
