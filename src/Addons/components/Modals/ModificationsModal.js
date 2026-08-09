@@ -10,17 +10,30 @@ const ModificationsModal = ({ show, onClose, server }) => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        if (show && server?.s_dir) {
+        if (show) {
             checkConfigSettings();
         }
     }, [show, server]);
+
+    const getConfigPath = async () => {
+        const rawPath = server?.s_dir || server?.s_path || "";
+        if (!rawPath) return null;
+        const sanitizedDir = rawPath.replace(/[\/\\][^\/\\]+\.exe$/i, "");
+        return await window.electron.pathJoin(sanitizedDir, "WTF", "Config.wtf");
+    };
 
     const checkConfigSettings = async () => {
         setLoading(true);
         setError(null);
 
         try {
-            const configPath = await window.electron.pathJoin(server.s_dir, "WTF", "Config.wtf");
+            const configPath = await getConfigPath();
+            if (!configPath) {
+                setError("No valid game path found for this server.");
+                setLoading(false);
+                return;
+            }
+
             const configExists = await window.electron.fileExists(configPath);
 
             if (!configExists) {
@@ -96,7 +109,8 @@ const ModificationsModal = ({ show, onClose, server }) => {
 
     const toggleSetting = async (settingName, currentValue, setValue) => {
         try {
-            const configPath = await window.electron.pathJoin(server.s_dir, "WTF", "Config.wtf");
+            const configPath = await getConfigPath();
+            if (!configPath) return;
             const configExists = await window.electron.fileExists(configPath);
 
             if (!configExists) {
@@ -135,7 +149,8 @@ const ModificationsModal = ({ show, onClose, server }) => {
 
     const updateScreenshotQuality = async (quality) => {
         try {
-            const configPath = await window.electron.pathJoin(server.s_dir, "WTF", "Config.wtf");
+            const configPath = await getConfigPath();
+            if (!configPath) return;
             const configExists = await window.electron.fileExists(configPath);
 
             if (!configExists) {

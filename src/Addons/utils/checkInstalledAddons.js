@@ -25,8 +25,9 @@ const checkInstalledAddons = async (gamePath, params = {}) => {
   try {
     setScanningAddons(true);
 
-    // 1) Normalize the path to Interface/AddOns
-    const absoluteGameDir = window.electron.pathResolve(gamePath);
+    // 1) Normalize the path to Interface/AddOns (stripping executable name if gamePath points to Wow.exe)
+    const rawPath = gamePath ? gamePath.replace(/[\/\\][^\/\\]+\.exe(\.exe)?$/i, "") : "";
+    const absoluteGameDir = window.electron.pathResolve(rawPath);
     const addonsDir = window.electron.pathJoin(
       absoluteGameDir,
       "Interface",
@@ -91,6 +92,8 @@ const checkInstalledAddons = async (gamePath, params = {}) => {
      * 5) Create a mapping from MAIN folders to addons ONLY.
      * This prevents subfolders from incorrectly matching another addon
      */
+    const normalizeFolderName = (name) => name.toLowerCase().replace(/[-_]?(335|master|main|v?\d+.*)$/i, "");
+
     const folderNameToAddons = {};
     fetchedAddons.forEach((addon) => {
       if (addon.custom_fields && addon.custom_fields.folder_list) {
@@ -100,6 +103,11 @@ const checkInstalledAddons = async (gamePath, params = {}) => {
               folderNameToAddons[folderName] = [];
             }
             folderNameToAddons[folderName].push(addon);
+
+            const normKey = normalizeFolderName(folderName);
+            if (normKey && normKey !== folderName && !folderNameToAddons[normKey]) {
+              folderNameToAddons[normKey] = folderNameToAddons[folderName];
+            }
           }
         });
       }
@@ -118,19 +126,36 @@ const checkInstalledAddons = async (gamePath, params = {}) => {
         const folderPath = window.electron.pathJoin(addonsDir, folder);
 
         // Skip if no addon claims this folder as its main folder
-        const matchingAddons = folderNameToAddons[folder] || [];
+        let matchingAddons = folderNameToAddons[folder] || [];
+        if (matchingAddons.length === 0) {
+          const normFolder = normalizeFolderName(folder);
+          matchingAddons = folderNameToAddons[normFolder] || [];
+        }
         if (matchingAddons.length === 0) {
           return;
         }
 
         // Read version from .toc if it exists
-        const tocFile = window.electron.pathJoin(folderPath, `${folder}.toc`);
-        let tocVersion = "1.0.0";
-        if (await window.electron.fileExists(tocFile)) {
-          const versionFromToc = await window.electron.readVersionFromToc(
-            tocFile
-          );
-          tocVersion = versionFromToc || tocVersion;
+        let tocVersion = "Unknown";
+        try {
+          let tocFile = window.electron.pathJoin(folderPath, `${folder}.toc`);
+          let exists = await window.electron.fileExists(tocFile);
+          if (!exists) {
+            const files = await window.electron.readDir(folderPath);
+            const foundToc = files.find(
+              (f) => f.toLowerCase().endsWith(".toc") && !f.toLowerCase().startsWith("embed")
+            );
+            if (foundToc) {
+              tocFile = window.electron.pathJoin(folderPath, foundToc);
+              exists = true;
+            }
+          }
+          if (exists) {
+            const versionFromToc = await window.electron.readVersionFromToc(tocFile);
+            tocVersion = versionFromToc || tocVersion;
+          }
+        } catch (err) {
+          console.error(`Error reading TOC version for ${folder}:`, err);
         }
 
         // Check for .warperia file to see if we can identify which exact addon ID was installed
@@ -150,7 +175,7 @@ const checkInstalledAddons = async (gamePath, params = {}) => {
               .map(([f]) => f)
               .join(",")}\nFilename: ${matchedAddon.custom_fields.file
               .split("/")
-              .pop()}`;
+              .pop()}\nWordPressVersion: ${matchedAddon.custom_fields.version || ""}`;
 
             await window.electron.writeFile(warperiaFile, warperiaContent);
           } catch (error) {
@@ -172,11 +197,10 @@ const checkInstalledAddons = async (gamePath, params = {}) => {
           const localWpVersionMatch = warperiaContent.match(
             /^WordPressVersion:\s*(.+)$/m
           );
-          let localWordPressVersion = "";
           if (localWpVersionMatch) {
             localWordPressVersion = localWpVersionMatch[1].trim();
           }
-          const localGitFingerprint = parseGitFingerprint(warperiaContent);
+          localGitFingerprint = parseGitFingerprint(warperiaContent);
           if (filenameMatch) {
             storedFilename = filenameMatch[1];
           }
@@ -212,11 +236,15 @@ const checkInstalledAddons = async (gamePath, params = {}) => {
                 (sub) => !addonFolders.includes(sub)
               );
 
+              const resolvedVersion = (tocVersion && tocVersion !== "Unknown")
+                ? tocVersion
+                : (localWordPressVersion || matchedAddon.custom_fields?.version || "Unknown");
+
               matchedAddons[folder] = {
                 ...matchedAddon,
                 corrupted: missingFolders.length > 0,
                 missingFolders,
-                localVersion: tocVersion,
+                localVersion: resolvedVersion,
                 storedFilename,
                 localGitFingerprint,
                 localWordPressVersion,
@@ -236,11 +264,15 @@ const checkInstalledAddons = async (gamePath, params = {}) => {
             (sub) => !addonFolders.includes(sub)
           );
 
+          const resolvedVersion = (tocVersion && tocVersion !== "Unknown")
+            ? tocVersion
+            : (localWordPressVersion || matchedAddon.custom_fields?.version || "Unknown");
+
           matchedAddons[folder] = {
             ...matchedAddon,
             corrupted: missingFolders.length > 0,
             missingFolders,
-            localVersion: tocVersion,
+            localVersion: resolvedVersion,
             storedFilename,
             localGitFingerprint,
             localWordPressVersion,
@@ -260,16 +292,21 @@ const checkInstalledAddons = async (gamePath, params = {}) => {
       setShowAddonSelectionModal(true);
     }
 
-    // 7.5) For each installed addon, if it has a GitHub link & local fingerprint, check if there's a new commit/release
-    // This makes Warperia "see" a new commit on refresh
-    for (const folderName of Object.keys(matchedAddons)) {
-      const installedAddon = matchedAddons[folderName];
-      const isOutdatedOnGitHub = await checkIfGitHubOutdated(installedAddon);
-      if (isOutdatedOnGitHub) {
-        installedAddon.corrupted = true;
-      }
-      matchedAddons[folderName] = installedAddon;
-    }
+    // 7.5) For each installed addon, check GitHub concurrently using Promise.all
+    await Promise.all(
+      Object.keys(matchedAddons).map(async (folderName) => {
+        try {
+          const installedAddon = matchedAddons[folderName];
+          const isOutdatedOnGitHub = await checkIfGitHubOutdated(installedAddon);
+          if (isOutdatedOnGitHub) {
+            installedAddon.corrupted = true;
+          }
+          matchedAddons[folderName] = installedAddon;
+        } catch (e) {
+          console.warn(`Error checking GitHub for ${folderName}:`, e);
+        }
+      })
+    );
 
     // 8) Update our state for all installed addons we confidently matched
     setInstalledAddons({ ...matchedAddons });

@@ -39,6 +39,13 @@ const pendingRestarts = {};
 /** For production, skip sessions < 5 min. For dev, skip 0 min. */
 const SKIP_MINUTES = app.isPackaged ? 5 : 0;
 
+const safeHandle = (channel, listener) => {
+    try {
+        ipcMain.removeHandler(channel);
+    } catch (e) {}
+    ipcMain.handle(channel, listener);
+};
+
 async function initializeApp() {
     const importedStore = await import('electron-store');
     Store = importedStore.default;
@@ -57,7 +64,7 @@ async function initializeApp() {
     // ================
     // TOKEN/USER IPC
     // ================
-    ipcMain.handle('store-token', (event, token) => {
+    safeHandle('store-token', (event, token) => {
         if (!safeStorage.isEncryptionAvailable()) {
             return { success: false, error: 'Encryption not available' };
         }
@@ -66,7 +73,7 @@ async function initializeApp() {
         return { success: true };
     });
 
-    ipcMain.handle('retrieve-token', () => {
+    safeHandle('retrieve-token', () => {
         const encB64 = store.get('auth_token');
         if (encB64 && safeStorage.isEncryptionAvailable()) {
             try {
@@ -80,22 +87,22 @@ async function initializeApp() {
         return { success: false, error: 'No token' };
     });
 
-    ipcMain.handle('clear-token', () => {
+    safeHandle('clear-token', () => {
         store.delete('auth_token');
         return { success: true };
     });
 
-    ipcMain.handle('store-user', (event, user) => {
+    safeHandle('store-user', (event, user) => {
         store.set('user', user);
         return { success: true };
     });
 
-    ipcMain.handle('retrieve-user', () => {
+    safeHandle('retrieve-user', () => {
         const user = store.get('user');
         return user ? { success: true, user } : { success: false, error: 'Not found' };
     });
 
-    ipcMain.handle('clear-user', () => {
+    safeHandle('clear-user', () => {
         store.delete('user');
         return { success: true };
     });
@@ -106,7 +113,7 @@ async function initializeApp() {
         }
     });
 
-    ipcMain.handle('install-update', () => {
+    safeHandle('install-update', () => {
         app.quit();
         autoUpdater.quitAndInstall(false, true);
     });
@@ -137,30 +144,27 @@ function createMainWindow() {
 
     mainWindow.setMinimumSize(1280, 720);
 
-    if (isDev) {
+    const distIndexPath = path.join(app.getAppPath(), 'dist', 'index.html');
+    if (fs.existsSync(distIndexPath)) {
+        mainWindow.loadFile(distIndexPath).catch((error) => {
+            console.error('Failed to load index.html:', error);
+        });
+    } else if (isDev) {
         mainWindow.loadURL('http://localhost:9000').catch((error) => {
             console.error('Failed to load dev URL:', error);
-            dialog.showErrorBox(
-                'App Load Error',
-                'Check dev server is running.'
-            );
         });
     } else {
-        mainWindow.loadFile(path.join(app.getAppPath(), 'dist', 'index.html')).catch((error) => {
+        mainWindow.loadFile(distIndexPath).catch((error) => {
             console.error('Failed to load index.html:', error);
-            dialog.showErrorBox(
-                'App Load Error',
-                'Please contact support.'
-            );
         });
     }
 
-    ipcMain.handle('show-open-dialog', async (event, opts) => {
+    safeHandle('show-open-dialog', async (event, opts) => {
         const result = await dialog.showOpenDialog(mainWindow, opts);
         return result.filePaths;
     });
 
-    ipcMain.handle('open-directory', async (event, directoryPath) => {
+    safeHandle('open-directory', async (event, directoryPath) => {
         try {
             const norm = path.normalize(directoryPath);
             const out = await shell.openPath(norm);
@@ -551,7 +555,7 @@ ipcMain.on('start-process-monitoring', (event, { exePath, serverId, intervalMs =
         }
 
         // normal process-status
-        if (mainWindow) {
+        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
             mainWindow.webContents.send('process-status-update', {
                 exePath,
                 serverId,

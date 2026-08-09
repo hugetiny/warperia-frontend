@@ -214,27 +214,30 @@ const AddonsPage = ({
 
     useEffect(() => {
         const initializeGameDirectory = async () => {
-            if (!user || !gamePath || !currentExpansion) {
+            const targetPath = gamePath || serverPath;
+            if (!user || !targetPath || !currentExpansion) {
                 console.error("User, server path, or expansion not found.");
+                setInitialLoading(false);
                 return;
             }
 
             try {
                 // Normalize and resolve the game path
                 const sanitizedGamePath = window.electron.pathNormalize(
-                    window.electron.pathResolve(gamePath)
+                    window.electron.pathResolve(targetPath)
                 );
 
-                // Remove the executable from the path if present
+                // Remove the executable from the path if present (supports both Windows \\ and macOS /)
                 const sanitizedPath = sanitizedGamePath.replace(
-                    /\\[^\\]+\.exe(\.exe)?$/i,
+                    /[\/\\][^\/\\]+\.exe(\.exe)?$/i,
                     ""
                 );
 
                 // Validate the game directory path
-                if (!isPathInsideDirectory(sanitizedPath, sanitizedGamePath)) {
+                if (!isPathInsideDirectory(sanitizedGamePath, sanitizedPath)) {
                     console.error("Invalid game directory:", sanitizedPath);
                     showToastMessage("Invalid game directory.", "danger");
+                    setInitialLoading(false);
                     return;
                 }
 
@@ -248,7 +251,7 @@ const AddonsPage = ({
         };
 
         initializeGameDirectory();
-    }, [user, gamePath, currentExpansion]);
+    }, [user, gamePath, serverPath, currentExpansion]);
 
     useEffect(() => {
         const fetchAllAddons = async () => {
@@ -461,8 +464,8 @@ const AddonsPage = ({
     };
 
     useEffect(() => {
-        if (installedAddons && Object.keys(installedAddons).length > 0) {
-            setLoading(false); // Ensure rendering only after the state is set
+        if (installedAddons) {
+            setLoading(false); // Ensure rendering finishes after scan completes
         }
     }, [installedAddons]);
 
@@ -961,7 +964,7 @@ const AddonsPage = ({
         try {
             // Delete all associated folders from the conflicting addons before installing the new one
             for (const folderName of allFolderNames) {
-                const folderPath = `${installPath}\\${folderName}`;
+                const folderPath = window.electron.pathJoin(installPath, folderName);
                 await window.electron.deleteFolder(folderPath);
             }
 
@@ -1002,7 +1005,7 @@ const AddonsPage = ({
             const mainFolder = selectedAddon.custom_fields.folder_list.find(
                 ([_, isMain]) => isMain === "1"
             )[0];
-            const warperiaFilePath = `${installPath}\\${mainFolder}\\${mainFolder}.warperia`;
+            const warperiaFilePath = window.electron.pathJoin(installPath, mainFolder, `${mainFolder}.warperia`);
 
             await window.electron.writeFile(
                 warperiaFilePath,
@@ -1083,7 +1086,7 @@ const AddonsPage = ({
         try {
             const folderList = contextMenu.addon.custom_fields.folder_list || [];
             const addonFolders = await window.electron.readDir(
-                `${gameDir}\\Interface\\AddOns`
+                window.electron.pathJoin(gameDir, "Interface", "AddOns")
             );
             const normalizedTitle = normalizeTitle(
                 contextMenu.addon.custom_fields.title_toc ||
@@ -1094,7 +1097,7 @@ const AddonsPage = ({
             let foldersToDelete = [];
 
             for (let folder of addonFolders) {
-                const tocFile = `${gameDir}\\Interface\\AddOns\\${folder}\\${folder}.toc`;
+                const tocFile = window.electron.pathJoin(gameDir, "Interface", "AddOns", folder, `${folder}.toc`);
 
                 if (await window.electron.fileExists(tocFile)) {
                     const title = await window.electron.readTitleFromToc(tocFile);
@@ -1118,7 +1121,7 @@ const AddonsPage = ({
 
             if (foldersToDelete.length > 0) {
                 for (const folder of foldersToDelete) {
-                    const addonFolder = `${gameDir}\\Interface\\AddOns\\${folder}`;
+                    const addonFolder = window.electron.pathJoin(gameDir, "Interface", "AddOns", folder);
                     await window.electron.deleteFolder(addonFolder);
                 }
 
@@ -1206,7 +1209,7 @@ const AddonsPage = ({
             }
 
             // Read all current folders once
-            const addonFolders = await window.electron.readDir(`${gameDir}\\Interface\\AddOns`);
+            const addonFolders = await window.electron.readDir(window.electron.pathJoin(gameDir, "Interface", "AddOns"));
 
             // For each addon we *are* deleting, remove its matching folders
             for (const ad of addonsToDelete) {
@@ -1219,7 +1222,7 @@ const AddonsPage = ({
 
                 // Attempt to match by .toc name
                 for (const folder of addonFolders) {
-                    const tocFile = `${gameDir}\\Interface\\AddOns\\${folder}\\${folder}.toc`;
+                    const tocFile = window.electron.pathJoin(gameDir, "Interface", "AddOns", folder, `${folder}.toc`);
                     if (await window.electron.fileExists(tocFile)) {
                         const title = await window.electron.readTitleFromToc(tocFile);
                         const normalizedFolderTitle = normalizeTitle(title || folder);
@@ -1251,7 +1254,7 @@ const AddonsPage = ({
 
                 // Actually remove them
                 for (const folderName of foldersToDelete) {
-                    const folderPath = `${gameDir}\\Interface\\AddOns\\${folderName}`;
+                    const folderPath = window.electron.pathJoin(gameDir, "Interface", "AddOns", folderName);
                     await window.electron.deleteFolder(folderPath);
                 }
             }
@@ -1412,15 +1415,15 @@ const AddonsPage = ({
 
     const handleUpdateAddon = async (addon, skipRefresh = false) => {
         try {
-            const installPath = `${gameDir}\\Interface\\AddOns`;
+            const installPath = window.electron.pathJoin(gameDir, "Interface", "AddOns");
 
             // Identify main folder from the addon’s folder_list
             const mainFolder = addon.custom_fields.folder_list.find(
                 ([_, isMain]) => isMain === "1"
             )[0];
-            const mainFolderPath = `${installPath}\\${mainFolder}`;
-            const tocFilePath = `${mainFolderPath}\\${mainFolder}.toc`;
-            const warperiaFilePath = `${mainFolderPath}\\${mainFolder}.warperia`;
+            const mainFolderPath = window.electron.pathJoin(installPath, mainFolder);
+            const tocFilePath = window.electron.pathJoin(mainFolderPath, `${mainFolder}.toc`);
+            const warperiaFilePath = window.electron.pathJoin(mainFolderPath, `${mainFolder}.warperia`);
 
             // 1) Local .toc version + local .warperia data
             const currentVersion = await window.electron.readVersionFromToc(tocFilePath) || "1.0.0";
@@ -1865,10 +1868,10 @@ const AddonsPage = ({
                                     const isExpanded = expandedAddons.includes(installedAddon.id);
 
                                     // 1) Grab local vs. backend versions
-                                    const localVersion = installedAddon.localVersion || "0.0.0";
-                                    const backendVersion = installedAddon.custom_fields?.version || "0.0.0";
-                                    const verCompare = semverCompare(backendVersion, localVersion);
-                                    const versionIsOutdated = (verCompare > 0); // Only "outdated" if backend > local
+                                    const localVersion = installedAddon.localVersion || "Unknown";
+                                    const backendVersion = installedAddon.custom_fields?.version || "Unknown";
+                                    const verCompare = (localVersion !== "Unknown" && backendVersion !== "Unknown") ? semverCompare(backendVersion, localVersion) : 0;
+                                    const versionIsOutdated = (verCompare > 0); // Only "outdated" if both versions exist and backend > local
 
                                     // 2) Check filenames
                                     const localFile = installedAddon.storedFilename || "";

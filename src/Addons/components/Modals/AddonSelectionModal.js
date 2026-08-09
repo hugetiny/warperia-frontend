@@ -9,7 +9,6 @@ const AddonSelectionModal = ({ matchedAddons, onSelectAddon, onCancel }) => {
     setLoadingAddonId(addon.id);
     await onSelectAddon(addon);
     setLoadingAddonId(null);
-    window.location.reload();
   };
 
   const sortedAddons = [...matchedAddons].sort((a, b) => {

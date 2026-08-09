@@ -97,7 +97,12 @@ const BrowseAddonCard = ({
                 </div>
                 <div className="details text-break center-part align-self-center">
                   <div className="addon-title text-light fw-medium">
-                    {addon.title} {" "}
+                    {addon.title}{" "}
+                    {addon.custom_fields?.version && (
+                      <span className="badge bg-secondary text-light ms-1 small">
+                        v{addon.custom_fields.version}
+                      </span>
+                    )}{" "}
                     {author && (
                       <span className="text-muted"> {" "}
                         by {author}
@@ -226,6 +231,18 @@ const BrowseAddonCard = ({
                   <i className="bi bi-play-circle me-1"></i>
                   <span>
                     {gameVersion}
+                  </span>
+                </div>
+              </Tippy>
+              <Tippy
+                content="Addon Version"
+                placement="bottom"
+                className="custom-tooltip"
+              >
+                <div className="meta-addon-version meta-item text-muted d-flex align-items-center gap-1 ms-3">
+                  <i className="bi bi-tag me-1"></i>
+                  <span>
+                    v{addon.custom_fields?.version || "Unknown"}
                   </span>
                 </div>
               </Tippy>

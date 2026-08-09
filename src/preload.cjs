@@ -3,7 +3,12 @@ try {
   const fs = require('fs');
   const path = require('path');
   const crypto = require('crypto');
-  const versionInfo = require('win-version-info');
+  let versionInfo;
+  try {
+    versionInfo = require('win-version-info');
+  } catch (e) {
+    versionInfo = null;
+  }
   const extract = require('extract-zip');
   const { spawn, exec } = require('child_process');
   const processManager = new Map();
@@ -185,38 +190,50 @@ try {
     // --------------------------------
     checkWowVersion: (filePath) => {
       try {
+        if (!filePath) return null;
         const fileName = path.basename(filePath);
         const fileDir = path.dirname(filePath);
 
-        // Read version info for the selected file
-        const versionData = versionInfo(filePath);
-        const productName = versionData.ProductName || '';
-        const fileDescription = versionData.FileDescription || '';
+        // Check for WoW-specific directories in the same directory as the .exe file
+        const requiredDirs = ['Data', 'Interface', 'WTF', 'data', 'interface', 'wtf'];
+        const hasRequiredDirs = requiredDirs.some(dirName => fs.existsSync(path.join(fileDir, dirName)));
 
-        // Strict check for "World of Warcraft" in either field
-        const isWowExecutable = /world of warcraft/i.test(productName) || /world of warcraft/i.test(fileDescription);
-
-        if (isWowExecutable) {
-          console.log(`Matched WoW executable: ${fileName}`);
-
-          // Check for WoW-specific directories in the same directory as the .exe file
-          const requiredDirs = ['Data', 'Interface', 'WTF'];
-          const hasRequiredDirs = requiredDirs.some(dirName => fs.existsSync(path.join(fileDir, dirName)));
-
-          if (hasRequiredDirs) {
-            console.log('Valid WoW installation directory detected.');
-            return versionData.ProductVersion; // Return version if valid WoW executable
-          } else {
-            console.warn('WoW executable found, but required directories (Data, Interface, WTF) are missing.');
-            return null; // Invalid if directories are missing
-          }
-        } else {
-          console.warn('The selected file is not a valid World of Warcraft executable.');
-          return null; // Explicitly return null for non-WoW executables
+        if (!hasRequiredDirs) {
+          console.warn('Required directories (Data, Interface, WTF) are missing.');
+          return null;
         }
+
+        // Try reading PE version data if win-version-info is available (Windows)
+        let productVersion = null;
+        if (versionInfo) {
+          try {
+            const versionData = versionInfo(filePath);
+            if (versionData) {
+              const productName = versionData.ProductName || '';
+              const fileDescription = versionData.FileDescription || '';
+              const isWowExecutable = /world of warcraft/i.test(productName) || /world of warcraft/i.test(fileDescription);
+              if (isWowExecutable && versionData.ProductVersion) {
+                productVersion = versionData.ProductVersion;
+              }
+            }
+          } catch (e) {
+            console.warn('win-version-info failed or skipped:', e);
+          }
+        }
+
+        // Strict validation: must be a WoW executable filename AND contain WoW directories
+        const isWowFileName = /^(wow(-64)?|world\s*of\s*warcraft.*)\.exe$/i.test(fileName);
+
+        if (isWowFileName && hasRequiredDirs) {
+          console.log('Valid WoW installation directory and executable detected:', fileName);
+          return productVersion || "3.3.5.12340";
+        }
+
+        console.warn('Selected file is not a recognized WoW executable or missing WoW directories.');
+        return null;
       } catch (error) {
         console.error(`Error reading version info for ${filePath}:`, error);
-        return null; // Explicitly return null on error
+        return null;
       }
     },
 
@@ -393,11 +410,16 @@ try {
     readVersionFromToc: async (tocFilePath) => {
       try {
         const content = await fs.promises.readFile(tocFilePath, 'utf-8');
-        const versionLine = content.split('\n').find(line => line.startsWith('## Version:'));
-        return versionLine ? versionLine.split(': ')[1].trim() : null;
+        const match = content.match(/^##\s*Version\s*:\s*(.+)$/im);
+        if (match) {
+          let ver = match[1].trim();
+          ver = ver.replace(/^v/i, '');
+          return ver;
+        }
+        return null;
       } catch (err) {
         console.error("Error reading version from TOC:", err);
-        throw err;
+        return null;
       }
     },
 

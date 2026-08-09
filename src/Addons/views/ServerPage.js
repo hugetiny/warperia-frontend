@@ -507,7 +507,7 @@ const ServerPage = ({ user }) => {
                 setActiveTab={setActiveTab}
                 gameVersion={expansion}
                 serverPath={server.s_path}
-                gamePath={server.s_dir}
+                gamePath={server.s_dir || server.s_path}
                 currentExpansion={expansion.toLowerCase()}
                 serverId={server.s_id}
               />
