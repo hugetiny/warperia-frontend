@@ -31,9 +31,21 @@ const InstalledAddonCard = ({
     categories = addon.categories.map(category => decodeHtmlEntities(category.name));
   }
 
-  const privateServerCategories = categories.filter(c => 
+  let detectedTags = categories.filter(c => 
     /epoch|turtle|ascension|chromie|whitemane|warmane|azeroth|trinity/i.test(c)
   );
+
+  const titleBracketMatch = addon?.title?.match(/\[(.*?(?:Epoch|Turtle|Ascension|Chromie|Warmane|Whitemane).*?)\]|\((.*?(?:Epoch|Turtle|Ascension|Chromie|Warmane|Whitemane).*?)\)/i);
+  if (titleBracketMatch) {
+    const tag = titleBracketMatch[1] || titleBracketMatch[2];
+    if (tag && !detectedTags.some(t => t.toLowerCase() === tag.toLowerCase())) {
+      detectedTags.push(tag);
+    }
+  }
+
+  if (addon.custom_fields?.variation_name && !detectedTags.includes(addon.custom_fields.variation_name)) {
+    detectedTags.push(addon.custom_fields.variation_name);
+  }
 
   return (
     <div
@@ -57,9 +69,9 @@ const InstalledAddonCard = ({
           <div className="details d-flex justify-content-between flex-wrap">
             <div className="addon-title text-light fw-bold">
               {addon.title}{" "}
-              {privateServerCategories.map((cat) => (
-                <span key={cat} className="badge bg-info text-dark ms-1 small">
-                  {cat}
+              {detectedTags.map((cat) => (
+                <span key={cat} className="badge bg-info text-dark fw-bold ms-1 small shadow-sm" style={{ backgroundColor: "#00d2ff", color: "#000" }}>
+                  <i className="bi bi-server me-1"></i>{cat}
                 </span>
               ))}
               {downloading && installingAddonId === addon.id && (

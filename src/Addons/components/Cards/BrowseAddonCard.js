@@ -73,9 +73,22 @@ const BrowseAddonCard = ({
   // Check if the author's name is valid
   const author = ["N/A", "Unknown", "Unknown author"].includes(authorText) ? null : authorText;
 
-  const privateServerCategories = categories.filter(c => 
+  // Detect private server tags (e.g. Project Epoch, Turtle WoW, Ascension) from categories, title brackets, or custom fields
+  let detectedTags = categories.filter(c => 
     /epoch|turtle|ascension|chromie|whitemane|warmane|azeroth|trinity/i.test(c)
   );
+
+  const titleBracketMatch = addon?.title?.match(/\[(.*?(?:Epoch|Turtle|Ascension|Chromie|Warmane|Whitemane).*?)\]|\((.*?(?:Epoch|Turtle|Ascension|Chromie|Warmane|Whitemane).*?)\)/i);
+  if (titleBracketMatch) {
+    const tag = titleBracketMatch[1] || titleBracketMatch[2];
+    if (tag && !detectedTags.some(t => t.toLowerCase() === tag.toLowerCase())) {
+      detectedTags.push(tag);
+    }
+  }
+
+  if (addon.custom_fields?.variation_name && !detectedTags.includes(addon.custom_fields.variation_name)) {
+    detectedTags.push(addon.custom_fields.variation_name);
+  }
 
   return (
     <div
@@ -107,9 +120,9 @@ const BrowseAddonCard = ({
                         v{addon.custom_fields.version}
                       </span>
                     )}{" "}
-                    {privateServerCategories.map((cat) => (
-                      <span key={cat} className="badge bg-info text-dark ms-1 small">
-                        {cat}
+                    {detectedTags.map((cat) => (
+                      <span key={cat} className="badge bg-info text-dark fw-bold ms-1 small shadow-sm" style={{ backgroundColor: "#00d2ff", color: "#000" }}>
+                        <i className="bi bi-server me-1"></i>{cat}
                       </span>
                     ))}{" "}
                     {author && (
