@@ -4,6 +4,10 @@ const Pagination = ({ currentPage, totalPages, onPageChange, onJumpToPage }) => 
   // Ensure totalPages is a valid number and at least 1
   const safeTotalPages = Number.isNaN(totalPages) || totalPages < 1 ? 1 : totalPages;
 
+  if (safeTotalPages <= 1) {
+    return null;
+  }
+
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= safeTotalPages) {
       onPageChange(newPage);

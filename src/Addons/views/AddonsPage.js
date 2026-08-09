@@ -189,7 +189,7 @@ const AddonsPage = ({
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const pageSize = 20;
+    const pageSize = 100;
 
     // Search state
     const [searchQuery, setSearchQuery] = useState("");
