@@ -209,7 +209,7 @@ const UserSettings = ({ user, onLogout, setPage, hasDirectoryIssues }) => {
                   role="tabpanel"
                   aria-labelledby="settings-tab"
                 >
-                  <Settings user={user} showToast={showToastMessage} />
+                  <Settings user={user} showToast={showToastMessage} onLogout={onLogout} />
                 </div>
               </div>
             </div>

@@ -71,6 +71,24 @@ const handleAddonInstallation = async (
   }
 
   const absoluteGameDir = window.electron.pathResolve(gameDir);
+
+  // Check if AddOns folder is writable, and auto-fix permissions if necessary
+  if (window.electron && typeof window.electron.checkAddonsFolderWritable === 'function') {
+    try {
+      const isWritable = await window.electron.checkAddonsFolderWritable(absoluteGameDir);
+      if (!isWritable) {
+        showToastMessage("Checking and fixing AddOns folder permissions...", "warning");
+        const fixed = await window.electron.fixAddonsFolderPermissions(absoluteGameDir);
+        if (!fixed) {
+          showToastMessage("AddOns directory is not writable. Please check folder permissions.", "danger");
+          return;
+        }
+      }
+    } catch (permErr) {
+      console.warn("Permissions check error:", permErr);
+    }
+  }
+
   const installPath = window.electron.pathJoin(
     absoluteGameDir,
     "Interface",
