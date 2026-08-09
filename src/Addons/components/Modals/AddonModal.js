@@ -28,11 +28,12 @@ const AddonModal = ({ show, onHide, addon, loading, installedAddon, downloading,
     const [currentImage, setCurrentImage] = useState(null);
     const [activeTab, setActiveTab] = useState('description');
     const [developers, setDevelopers] = useState([]);
+    const [screenshots, setScreenshots] = useState([]);
     const modalRef = useRef(null); // Reference to the modal content
     const isInstalled = !!installedAddon;
     const isInstalling = downloading && installingAddonId === addon?.id;
 
-    const hasScreenshots = addon?.custom_fields?.screenshots?.length > 0 || addon?.featured_image;
+    const hasScreenshots = screenshots.length > 0 || !!addon?.featured_image;
     const hasWebsiteLink = addon?.custom_fields?.website_link && addon.custom_fields.website_link.trim() !== '';
 
     const postType = addon?.post_type || '';
@@ -109,6 +110,66 @@ const AddonModal = ({ show, onHide, addon, loading, installedAddon, downloading,
         };
 
         fetchDevelopers();
+    }, [addon, expansionPrefix]);
+
+    useEffect(() => {
+        const resolveScreenshots = async () => {
+            if (!addon) {
+                setScreenshots([]);
+                return;
+            }
+
+            const rawScreenshots =
+                addon?.custom_fields?.screenshots ||
+                addon?.custom_fields?.[`${expansionPrefix}screenshots`] ||
+                addon?.custom_fields?.gallery;
+
+            let images = [];
+
+            if (typeof rawScreenshots === 'string') {
+                try {
+                    const parsed = JSON.parse(rawScreenshots);
+                    images = Array.isArray(parsed) ? parsed : [rawScreenshots];
+                } catch (e) {
+                    const ids = parseSerializedArray(rawScreenshots);
+                    if (ids.length > 0) {
+                        images = ids;
+                    } else if (rawScreenshots.includes('http')) {
+                        images = rawScreenshots.split(',').map(s => s.trim()).filter(Boolean);
+                    } else {
+                        images = [rawScreenshots];
+                    }
+                }
+            } else if (Array.isArray(rawScreenshots)) {
+                images = rawScreenshots;
+            }
+
+            const urls = [];
+            for (const item of images) {
+                if (typeof item === 'number' || (typeof item === 'string' && /^\d+$/.test(item))) {
+                    try {
+                        const res = await axios.get(`${WEB_URL}/wp-json/wp/v2/media/${item}`);
+                        if (res?.data?.source_url) {
+                            urls.push(res.data.source_url);
+                        }
+                    } catch (err) {
+                        console.error("Failed to fetch screenshot media ID", item, err);
+                    }
+                } else if (typeof item === 'string' && item.startsWith('http')) {
+                    urls.push(item);
+                } else if (item && typeof item === 'object' && (item.url || item.source_url || item.guid?.rendered)) {
+                    urls.push(item.url || item.source_url || item.guid?.rendered);
+                }
+            }
+
+            if (urls.length === 0 && addon?.featured_image) {
+                urls.push(addon.featured_image);
+            }
+
+            setScreenshots(urls);
+        };
+
+        resolveScreenshots();
     }, [addon, expansionPrefix]);
 
     const renderOriginalCreator = () => {
@@ -290,35 +351,23 @@ const AddonModal = ({ show, onHide, addon, loading, installedAddon, downloading,
                                             <div className="tab-pane fade show active">
                                                 <Swiper
                                                     spaceBetween={10}
-                                                    slidesPerView={3}
+                                                    slidesPerView={screenshots.length > 1 ? Math.min(screenshots.length, 3) : 1}
                                                     navigation
                                                     pagination={{ clickable: true }}
-                                                    loop={true}
-                                                    modules={[Navigation]}
+                                                    loop={screenshots.length > 3}
+                                                    modules={[Navigation, Pagination]}
                                                 >
-                                                    {addon.custom_fields.screenshots?.length > 0 ? (
-                                                        addon.custom_fields.screenshots.map((image, index) => (
-                                                            <SwiperSlide key={index}>
-                                                                <img
-                                                                    src={image}
-                                                                    alt={`Screenshot ${index + 1}`}
-                                                                    className="d-block w-100 addon-screenshot"
-                                                                    onClick={() => openLightbox(image)}
-                                                                    style={{ cursor: 'pointer' }}
-                                                                />
-                                                            </SwiperSlide>
-                                                        ))
-                                                    ) : (
-                                                        <SwiperSlide>
+                                                    {screenshots.map((image, index) => (
+                                                        <SwiperSlide key={index}>
                                                             <img
-                                                                src={addon.featured_image}
-                                                                alt="Featured Image"
+                                                                src={image}
+                                                                alt={`Screenshot ${index + 1}`}
                                                                 className="d-block w-100 addon-screenshot"
-                                                                onClick={() => openLightbox(addon.featured_image)}
-                                                                style={{ cursor: 'pointer' }}
+                                                                onClick={() => openLightbox(image)}
+                                                                style={{ cursor: 'pointer', borderRadius: '4px', objectFit: 'cover' }}
                                                             />
                                                         </SwiperSlide>
-                                                    )}
+                                                    ))}
                                                 </Swiper>
                                             </div>
                                         )}
